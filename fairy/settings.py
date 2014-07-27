@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+import sae.const
+import sae.kvdb
+import random
+import string
+
+kv = sae.kvdb.KVClient()
 """
 Django settings for fairy project.
 For more information on this file, see
@@ -17,14 +23,17 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 # See https://docs.djangoproject.com/en/1.6/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'SECRET_KEY!!!!!!!!!!'
+if not kv.get('secret_key'):
+    kv.set('secret_key', ''.join(random.sample(string.ascii_letters + string.digits, 32)))
+
+SECRET_KEY = kv.get('secret_key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 TEMPLATE_DEBUG = True
 
-ALLOWED_HOSTS = ['']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -48,7 +57,7 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.middleware.locale.LocaleMiddleware',
+    #'django.middleware.locale.LocaleMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'fairy.middleware.SiteOff',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -66,19 +75,21 @@ WSGI_APPLICATION = 'fairy.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-        'USER': '',
-        'PASSWORD': '',
+        'ENGINE': 'django.db.backends.mysql',
+        'HOST': sae.const.MYSQL_HOST,
+        'PORT': sae.const.MYSQL_PORT,
+        'NAME': sae.const.MYSQL_DB,
+        'USER': sae.const.MYSQL_USER,
+        'PASSWORD': sae.const.MYSQL_PASS,
     }
 }
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'zh-cn'
 
-TIME_ZONE = 'Asia/Shanghai'
+TIME_ZONE = 'Asia/Chongqing'
 
 USE_I18N = True
 

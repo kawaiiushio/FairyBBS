@@ -1,0 +1,19 @@
+name: fairybbs
+version: 4
+libraries:
+- name: "django"
+  version: "1.5"
+handlers:
+- url: /static
+  static_dir: static
+handle:
+- compress:  if ( out_header["Content-type"] ~ "text/css" ) compress
+- compress:  if ( out_header["Content-type"] ~ "text/javascript" ) compress
+- compress:  if ( out_header["Content-type"] ~ "text/html" ) compress
+- compress:  if ( out_header["Content-type"] ~ "application/zip" ) compress
+- compress:  if ( out_header["Content-type"] ~ "application/x-zip-compressed" ) compress
+- compress:  if ( out_header["Content-type"] ~ "image/jpeg" ) compress
+- compress:  if ( out_header["Content-type"] ~ "image/png" ) compress
+- compress:  if ( out_header["Content-type"] ~ "image/pjpeg" ) compress
+- compress:  if ( out_header["Content-type"] ~ "image/gif" ) compress
+- compress:  if ( out_header["Content-type"] ~ "image/bmp" ) compress

@@ -1,15 +1,10 @@
 from django.http import HttpResponse
-from django.core.files.storage import FileSystemStorage
-from fairy.settings import BASE_DIR
 from forum.models import topic, post, node
+from sae.storage import Bucket
 import json
-import os
+import random
 
-UPLOAD_TO = os.path.join(BASE_DIR, 'static/upload')
-storage = FileSystemStorage(
-        location=UPLOAD_TO,
-        base_url='static/upload'
-        )
+bucket = Bucket('upload')
 
 
 def topic_data(topic_id):
@@ -44,16 +39,26 @@ def topics_api(request):
         data[str(t.id)] = topic_data(t.id)
     return HttpResponse(json.dumps(data))
 
-
 def topic_api(request, topic_id):
     data = topic_data(topic_id)
     return HttpResponse(json.dumps(data))
 
 
 def simditor_upload(request):
+
+    def get_name(name):
+        names = [i['name'] for i in bucket.list()]
+        if name in names:
+            return get_name(str(random.randint(1, 999))+name)
+        else:
+            return name
+
     f = request.FILES['upload_file']
-    name = storage.save(storage.get_available_name(f.name), f)
-    url = storage.url(name)
+
+    name = get_name(f.name)
+    bucket.put_object(name, f)
+    url = bucket.generate_url(name)
+
     data = {}
     data['file_path'] = url
     return HttpResponse(json.dumps(data), content_type="application/json")

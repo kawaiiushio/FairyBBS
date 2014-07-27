@@ -3,12 +3,15 @@ from account.models import profile
 from fairy import settings
 from forum.models import node, topic, post
 import os
-sitename = u'FairyBBS'
-logoname = u'FairyBBS'
+import sae.kvdb
+import json
 
-links = {
-        #'description': 'url',
-        }
+kv = sae.kvdb.KVClient()
+
+sitename = kv.get('conf_sitename')
+logoname = kv.get('conf_logoname')
+
+links = json.loads(kv.get('conf_links'))
 nodes = node.objects.all()
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 UPLOAD_PATH = os.path.join(BASE_DIR, 'static/upload')

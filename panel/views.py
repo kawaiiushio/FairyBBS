@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from fairy import conf
 from django.template import RequestContext
 from forum.models import node, topic
 from django.shortcuts import render_to_response
@@ -9,12 +10,31 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.contrib.auth.decorators import user_passes_test
 import json
 from django.db.models import Q
+import sae.kvdb
+
+kv = sae.kvdb.KVClient()
+
 # Create your views here.
 
 
 @user_passes_test(lambda u: u.is_superuser, login_url=reverse('signin'))
 def index(request):
-    return render_to_response('panel/index.html', {'title': _('home')})
+    if request.method == 'GET':
+        logoname = kv.get('conf_logoname')
+        sitename = kv.get('conf_sitename')
+        links = kv.get('conf_links')
+        return render_to_response('panel/index.html', {'title': _('home'),
+            'logoname': logoname,
+            'sitename': sitename,
+            'links': links},
+            context_instance=RequestContext(request))
+    elif request.method == 'POST':
+        data = request.POST
+        kv.set('conf_logoname', data.get('logoname'))
+        kv.set('conf_sitename', data.get('sitename'))
+        kv.set('conf_links', data.get('links'))
+        reload(conf)
+        return HttpResponseRedirect(reverse('panel:index'))
 
 
 @user_passes_test(lambda u: u.is_superuser)

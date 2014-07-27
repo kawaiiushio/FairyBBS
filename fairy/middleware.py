@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+from django.core.urlresolvers import reverse
 from fairy.conf import site_off
 from forum.views import error
-from django.core.urlresolvers import reverse
+
 
 class SiteOff(object):
 

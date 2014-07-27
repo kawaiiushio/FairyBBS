@@ -1,5 +1,13 @@
 {% extends 'base-with-sidebar.html' %}
 {% load i18n %}
+
+{% block header_ext %}
+{% load staticfiles %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/hl.css' %}" />
+<link rel="stylesheet" type="text/css" href="{% static 'css/simditor.css' %}" />
+<link rel="stylesheet" type="text/css" href="{% static 'css/font-awesome.css' %}" />
+{% endblock %}
+
 {% block left %}
 <div class="panel panel-default">
     <div class="panel-heading title-breadcrumb">
@@ -29,9 +37,6 @@
                 <textarea placeholder="{% trans 'content' %}"  class="form-control" id="content" name="content"></textarea>
             </div>
             <div class="form-submit text-right">
-                <a class="btn btn-default" id="pre-btn">
-                    {% trans 'preview' %}
-                </a>
                 <button class="btn btn-info" type="submit" id="submit">
                     {% trans 'submit' %}(Ctrl+Enter)
                 </button>
@@ -56,5 +61,6 @@
 {% include 'links.html' %}
 {% endblock %}
 {% block footer_ext %}
-<script src="{{STATIC_URL}}js/previewer.js"></script>
+<script src="{{STATIC_URL}}js/simditor-all.min.js"></script>
+<script src="{{STATIC_URL}}js/editor.js"></script>
 {% endblock %}

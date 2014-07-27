@@ -1,9 +1,38 @@
 from django.db import models
 from django.contrib.auth.models import User
 import markdown
+import bleach
 import re
 from django.core.urlresolvers import reverse
-# Create your models here.
+
+ALLOWED_TAGS = [
+    'p',
+    'a',
+    'abbr',
+    'acronym',
+    'b',
+    'blockquote',
+    'code',
+    'em',
+    'i',
+    'li',
+    'ol',
+    'strong',
+    'ul',
+    'img',
+    'br',
+    'pre',
+    'u',
+    'strike',
+    'hr',
+]
+
+ALLOWED_ATTRIBUTES = {
+    'a': ['href', 'title'],
+    'abbr': ['title'],
+    'acronym': ['title'],
+    'img':['src'],
+}
 
 
 class topic(models.Model):
@@ -17,10 +46,10 @@ class topic(models.Model):
     time_created = models.DateTimeField(auto_now_add=True)
     last_replied = models.DateTimeField(blank=True, null=True)
     deleted = models.BooleanField(default=False)
-    order = models.IntegerField(default=10)
+    order = models.IntegerField(default=99)
     
     class Meta():
-        ordering = ['order' ,'-time_created']
+        ordering = ['order', '-time_created']
 
     def __unicode__(self):
         return self.title
@@ -32,8 +61,7 @@ class topic(models.Model):
             new = False
         if not self.content:
             self.content = ''
-        self.content_rendered = markdown.markdown(self.content, ['codehilite'],
-                                                  safe_mode='escape')
+        self.content_rendered = bleach.clean(self.content, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES)
         self.reply_count = self.post_set.filter(deleted=False).count()
         if self.reply_count:
             self.last_replied = self.post_set.filter(deleted=False).latest('time_created').time_created
@@ -94,8 +122,7 @@ class post(models.Model):
             new = False
         if not self.content:
             self.content = ''
-        self.content_rendered = markdown.markdown(self.content, ['codehilite'],
-                                                  safe_mode='escape')
+        self.content_rendered = bleach.clean(self.content, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRIBUTES)
         to = []
         for u in re.findall(r'@(.*?)\s', self.content_rendered):
             try:
@@ -153,6 +180,5 @@ class appendix(models.Model):
     def save(self, *args, **kwargs):
         if not self.content:
             self.content = ''
-        self.content_rendered = markdown.markdown(self.content, ['codehilite'],
-                                                  safe_mode='escape')
+        self.content_rendered = markdown.markdown(self.content, safe_mode='escape')
         super(appendix, self).save(*args, **kwargs)

@@ -15,7 +15,6 @@ from django.core.validators import RegexValidator
 from django.http import HttpResponseRedirect, HttpResponse
 from django.shortcuts import render_to_response
 from django.template import RequestContext
-from django.utils.translation import LANGUAGE_SESSION_KEY
 from fairy import conf
 from forum.models import topic, post, node
 from forum.views import error
@@ -28,12 +27,18 @@ import urllib
 import urllib2
 import re
 import random
-# Create your views here.
+import sae.kvdb
+from sae.storage import Bucket
+from sae.ext.storage import monkey
 
-storage = FileSystemStorage(
-    location=conf.UPLOAD_PATH,
-    base_url='/static/upload/'
-)
+kv = sae.kvdb.KVClient()
+avatar_bucket = Bucket('avatar')
+monkey.patch_all()
+
+try:
+    from StringIO import StringIO
+except ImportError:
+    from cStringIO import StringIO
 
 alphanumeric = RegexValidator(r'^[0-9a-zA-Z\_]*$', 'Only alphanumeric characters and underscore are allowed.')
 
@@ -78,6 +83,12 @@ def reg(request):
             return HttpResponseRedirect(reverse('reg'))
 
         user = User.objects.create_user(username, email, password)
+
+        if user.id == 1:
+            user.is_staff = True
+            user.is_superuser = True
+            user.save()
+
         user = authenticate(username=username, password=password)
         login(request, user)
         p = profile()
@@ -94,7 +105,7 @@ def user_login(request):
         username = request.POST['username']
         password = request.POST['password']
         user = authenticate(username=username, password=password)
-
+        
         if not User.objects.filter(username=username).exists():
             messages.add_message(request, messages.WARNING, _('username does not exist'))
             return HttpResponseRedirect(reverse('signin'))
@@ -168,7 +179,7 @@ def change_password(request):
 def user_avatar(request):
     u = request.user
     if request.method == 'GET':
-        return render_to_response('account/user-avatar.html', {'request': request, 'title': _('avatar setting'),
+        return render_to_response('account/user-avatar.html', {'request': request, 'title': _('Avatar Settings'),
                                                        'conf': conf},
                                   context_instance=RequestContext(request))
     else:
@@ -178,15 +189,18 @@ def user_avatar(request):
         if f:
             extension = os.path.splitext(f.name)[-1]
             if f.size > 524288:
-                return error(request, _('file too big'))
+                return error(request, _('File too big'))
             if (extension not in ['.jpg', '.png', '.gif']) or ('image' not in f.content_type):
-                return error(request, _('file type not permitted'))
+                return error(request, _('File type not allowed'))
             im = Image.open(f)
             im.thumbnail((120,120))
-            name = storage.get_available_name(str(u.id)) + '.png'
-            url = storage.url(name)
-            request.user.profile.avatar_url = url
-            im.save('%s/%s' % (storage.location, name), 'PNG')
+            name = str(u.id) + '.png'
+            temp = StringIO()
+            im.save(temp, 'PNG')
+            avatar_bucket.put_object(name, temp.getvalue())
+            temp.close()
+            url = avatar_bucket.generate_url(name)
+            u.profile.avatar_url = url
         u.profile.save()
         return HttpResponseRedirect(reverse('user_avatar'))
 
@@ -201,110 +215,3 @@ def reset(request):
         email_template_name='account/reset-password-email.html',
         subject_template_name='account/reset-password-subject.txt',
         post_reset_redirect=reverse('signin'))
-
-
-def set_lang(request):
-    # the lang_code must be in the LANGUAGES tuple
-    if request.method == 'GET':
-        lang_code = request.GET['lang']
-        if hasattr(request, 'session'):
-            request.session[LANGUAGE_SESSION_KEY] = lang_code
-        else:
-            pass
-            #response.set_cookie(settings.LANGUAGE_COOKIE_NAME, lang_code,
-            #                    max_age=settings.LANGUAGE_COOKIE_AGE,
-            #                    path=settings.LANGUAGE_COOKIE_PATH,
-            #                    domain=settings.LANGUAGE_COOKIE_DOMAIN)
-        return HttpResponseRedirect(request.META['HTTP_REFERER'])
-
-###############
-#oauth related#
-###############
-def GenerateUsername(nickname):
-    i = 0
-    MAX = 999
-    while (i < MAX):
-        username = nickname + '__qq__' + str(random.randint(0, MAX))
-        try:
-            User.objects.get(username=username)
-        except User.DoesNotExist:
-            return username
-    raise Exception('All random username are taken')
-
-
-def qq_oauth(request):
-    if request.method == 'GET':
-        if (not request.GET['code']) or (request.GET['state'] != 'fairybbs'):
-            return error(request, '请求错误')
-        code = request.GET['code']
-        url = 'https://graph.qq.com/oauth2.0/token'
-        data = {'grant_type': 'authorization_code',
-                'client_id': '',
-                'client_secret': '',
-                'code': code,
-                'redirect_uri': ''}
-        req = urllib2.Request(url, urllib.urlencode(data))
-        res = urllib2.urlopen(req)
-        try:
-            access_token = re.findall(r'access_token=(.*?)&', res.read())[0]
-        except:
-            return error(request, u'抱歉，未从腾讯获取到有效的授权信息，可能是和腾讯通信失败，请重试\n')
-        url_openid = 'https://graph.qq.com/oauth2.0/me'
-        data_openid = {'access_token': access_token}
-        req_openid = urllib2.Request(url_openid, urllib.urlencode(data_openid))
-        res_openid = urllib2.urlopen(req_openid)
-        try:
-            JSON_openid = json.loads(res_openid.read()[10:-3])
-        except:
-            return error(request, u'抱歉，未从腾讯获取到有效的授权信息，可能是和腾讯通信失败，请重试')
-        openid = JSON_openid['openid']
-        try:
-            u = social.objects.get(openid=openid).user
-        except:
-            url_info = 'https://graph.qq.com/user/get_user_info'
-            data_info = {'oauth_consumer_key': '',
-                         'access_token': access_token,
-                         'openid': openid}
-            req_info = urllib2.Request(url_info, urllib.urlencode(data_info))
-            res_info = urllib2.urlopen(req_info)
-            JSON_info = json.loads(res_info.read())
-            username = JSON_info['nickname']
-            nickname = username
-            if JSON_info['figureurl_qq_2']:
-                avatar = JSON_info['figureurl_qq_2']
-            else:
-                avatar = JSON_info['figureurl_2']
-            password = User.objects.make_random_password()
-            try:
-                u = User.objects.get(username=username)
-            except:
-                pass
-            else:
-                username = GenerateUsername(nickname)
-            u = User(username=username)
-            u.set_password(password)
-            u.save()
-            p = profile(user=u,
-                        #avatar=avatar,
-                        nickname=nickname,
-                        avatar_url=avatar,
-                        use_gravatar=False)
-            p.save()
-            s = social(user=u,
-                       access_token=access_token,
-                       openid=openid,
-                       avatar=avatar, )
-            s.save()
-            user = auth.authenticate(username=username, password=password)
-            if user is not None and user.is_active:
-                auth.login(request, user)
-                return HttpResponseRedirect(reverse('index')) #login succeed
-        else:
-            u.social.access_token = access_token
-            u.social.save()
-            u.backend = 'django.contrib.auth.backends.ModelBackend'
-            if u is not None and u.is_active:
-                auth.login(request, u)
-                return HttpResponseRedirect(reverse('index')) #login succeed
-            else:
-                return error(request, u'授权失败，请重试')
